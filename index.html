@@ -499,10 +499,17 @@
         };
     }
 
+    // Notion API doesn't allow browser CORS requests directly.
+    // We use a lightweight Cloudflare Worker proxy or a public CORS proxy.
+    // Option 1: Use your own Cloudflare Worker (recommended for production)
+    // Option 2: Use a CORS proxy (for quick setup)
+    const CORS_PROXY = 'https://corsproxy.io/?';
+
     async function fetchTasks(config) {
         const week = getWeekBounds();
+        const notionUrl = `https://api.notion.com/v1/databases/${config.databaseId}/query`;
         
-        const response = await fetch(`https://api.notion.com/v1/databases/${config.databaseId}/query`, {
+        const response = await fetch(CORS_PROXY + encodeURIComponent(notionUrl), {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${config.apiKey}`,
@@ -527,8 +534,12 @@
         });
 
         if (!response.ok) {
-            const err = await response.json();
-            throw new Error(err.message || `API error: ${response.status}`);
+            let errMsg = `API error: ${response.status}`;
+            try {
+                const err = await response.json();
+                errMsg = err.message || errMsg;
+            } catch(e) {}
+            throw new Error(errMsg);
         }
 
         return await response.json();
